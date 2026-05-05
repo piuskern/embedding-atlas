@@ -70,10 +70,11 @@
   let effectiveRangeSelection: Rectangle | Point[] | null = $state.raw(null);
 
   let clientId: any | null = $state.raw(null);
+  let isBaseLayerActive: boolean = $state(false);
 
   $effect(() => {
     // Let Svelte track the dependencies.
-    let deps = { coordinator: coordinator, source: { table, x, y, category } };
+    let deps = { coordinator: coordinator, source: { table, x, y, category }, filter: filter };
 
     let client: { destroy: () => void } | null = null;
     let didDestroy = false;
@@ -91,17 +92,32 @@
       categoryCount = approxDensity.categoryCount;
 
       // A client is a thing that queries data from a selection with user-defined query
+      let pendingBaseLayerActive = false;
       client = makeClient({
         coordinator: deps.coordinator,
-        selection: filter ?? undefined,
+        selection: deps.filter ?? undefined,
         query: (predicate) => {
-          return SQL.Query.from(source.table)
-            .select({
-              x: SQL.sql`${SQL.column(source.x)}::FLOAT`,
-              y: SQL.sql`${SQL.column(source.y)}::FLOAT`,
-              ...(source.category != null ? { c: SQL.sql`${SQL.column(source.category)}::UTINYINT` } : {}),
-            })
-            .where(predicate);
+          // An empty array means no active clauses (filter cleared) — treat same as null.
+          const hasFilter = predicate != null && !(Array.isArray(predicate) && predicate.length === 0);
+          pendingBaseLayerActive = hasFilter;
+          if (!hasFilter) {
+            return SQL.Query.from(source.table)
+              .select({
+                x: SQL.sql`${SQL.column(source.x)}::FLOAT`,
+                y: SQL.sql`${SQL.column(source.y)}::FLOAT`,
+                ...(source.category != null ? { c: SQL.sql`${SQL.column(source.category)}::UTINYINT` } : {}),
+              });
+          }
+          // Filter active: return ALL N points. Selected → original category, non-selected → grey slot.
+          const greyIdx = categoryCount;
+          const filterExpr = SQL.and(predicate);
+          return SQL.Query.from(source.table).select({
+            x: SQL.sql`${SQL.column(source.x)}::FLOAT`,
+            y: SQL.sql`${SQL.column(source.y)}::FLOAT`,
+            c: source.category != null
+              ? SQL.sql`CASE WHEN (${filterExpr}) THEN ${SQL.column(source.category)}::UTINYINT ELSE ${greyIdx}::UTINYINT END`
+              : SQL.sql`CASE WHEN (${filterExpr}) THEN 0::UTINYINT ELSE 1::UTINYINT END`,
+          });
         },
         queryResult: (data: any) => {
           let xArray = data.getChild("x").toArray();
@@ -120,6 +136,8 @@
           xData = xArray;
           yData = yArray;
           categoryData = categoryArray;
+          // Update base layer state atomically with data so colors and points are always in sync.
+          isBaseLayerActive = pendingBaseLayerActive;
           updateTooltip(null);
           updateSelection(null);
         },
@@ -138,6 +156,12 @@
       client?.destroy();
     };
   });
+
+  let baseLayerColor = $derived(
+    isBaseLayerActive
+      ? ((config?.colorScheme ?? "light") === "light" ? "#c8c8c8" : "#606060")
+      : null
+  );
 
   // Tooltip
   $effect(() => {
@@ -496,4 +520,5 @@
     onRangeSelection?.(v);
   }}
   cache={cache}
+  baseLayerColor={baseLayerColor}
 />

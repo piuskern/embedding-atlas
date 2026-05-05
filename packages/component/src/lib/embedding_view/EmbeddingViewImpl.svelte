@@ -30,6 +30,7 @@
     onSelection: ((value: Selection[] | null) => void) | null;
     onRangeSelection: ((value: Rectangle | Point[] | null) => void) | null;
     cache: Cache | null;
+    baseLayerColor?: string | null;
   }
 
   interface Cluster {
@@ -156,13 +157,18 @@
     onSelection = null,
     onRangeSelection = null,
     cache = null,
+    baseLayerColor = null,
   }: Props<Selection> = $props();
 
   let showClusterLabels = true;
 
   let colorScheme = $derived(config?.colorScheme ?? "light");
   let resolvedTheme = $derived(resolveTheme(theme, colorScheme));
-  let resolvedCategoryColors = $derived(categoryColors ?? defaultCategoryColors(categoryCount));
+  let resolvedCategoryColors = $derived(
+    baseLayerColor != null
+      ? [...(categoryColors ?? defaultCategoryColors(categoryCount)), baseLayerColor]
+      : (categoryColors ?? defaultCategoryColors(categoryCount)),
+  );
 
   let resolvedViewportState = $derived(viewportState ?? defaultViewportState ?? { x: 0, y: 0, scale: 1 });
   let resolvedViewport = $derived(new Viewport(resolvedViewportState, width, height));
@@ -256,7 +262,7 @@
       x: data.x,
       y: data.y,
       category: data.category,
-      categoryCount,
+      categoryCount: baseLayerColor != null ? categoryCount + 1 : categoryCount,
       categoryColors: resolvedCategoryColors,
       downsampleMaxPoints,
       downsampleDensityWeight,
