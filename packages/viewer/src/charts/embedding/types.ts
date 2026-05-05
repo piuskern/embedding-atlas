@@ -20,6 +20,7 @@ export interface EmbeddingSpec {
   pointSize?: number;
   /** Maximum number of points to render (for downsampling). Default: 4000000. Set to null to disable. */
   downsampleMaxPoints?: number | null;
+  showBaseLayer?: boolean;
   config?: EmbeddingViewConfig;
 }
 

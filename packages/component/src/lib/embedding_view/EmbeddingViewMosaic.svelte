@@ -74,7 +74,7 @@
 
   $effect(() => {
     // Let Svelte track the dependencies.
-    let deps = { coordinator: coordinator, source: { table, x, y, category }, filter: filter };
+    let deps = { coordinator: coordinator, source: { table, x, y, category }, filter: filter, showBaseLayer: config?.showBaseLayer !== false };
 
     let client: { destroy: () => void } | null = null;
     let didDestroy = false;
@@ -99,7 +99,7 @@
         query: (predicate) => {
           // An empty array means no active clauses (filter cleared) — treat same as null.
           const hasFilter = predicate != null && !(Array.isArray(predicate) && predicate.length === 0);
-          pendingBaseLayerActive = hasFilter;
+          pendingBaseLayerActive = hasFilter && deps.showBaseLayer;
           if (!hasFilter) {
             return SQL.Query.from(source.table)
               .select({
@@ -108,16 +108,27 @@
                 ...(source.category != null ? { c: SQL.sql`${SQL.column(source.category)}::UTINYINT` } : {}),
               });
           }
-          // Filter active: return ALL N points. Selected → original category, non-selected → grey slot.
-          const greyIdx = categoryCount;
           const filterExpr = SQL.and(predicate);
+          if (!deps.showBaseLayer) {
+            // Base layer off: return only the selected points.
+            return SQL.Query.from(source.table)
+              .select({
+                x: SQL.sql`${SQL.column(source.x)}::FLOAT`,
+                y: SQL.sql`${SQL.column(source.y)}::FLOAT`,
+                ...(source.category != null ? { c: SQL.sql`${SQL.column(source.category)}::UTINYINT` } : {}),
+              })
+              .where(filterExpr);
+          }
+          // Base layer on: return ALL points. Selected → original category, non-selected → grey slot.
+          // Order grey points first so selected points are drawn on top.
+          const greyIdx = categoryCount;
           return SQL.Query.from(source.table).select({
             x: SQL.sql`${SQL.column(source.x)}::FLOAT`,
             y: SQL.sql`${SQL.column(source.y)}::FLOAT`,
             c: source.category != null
               ? SQL.sql`CASE WHEN (${filterExpr}) THEN ${SQL.column(source.category)}::UTINYINT ELSE ${greyIdx}::UTINYINT END`
               : SQL.sql`CASE WHEN (${filterExpr}) THEN 0::UTINYINT ELSE 1::UTINYINT END`,
-          });
+          }).orderby(SQL.sql`CASE WHEN (${filterExpr}) THEN 1 ELSE 0 END`);
         },
         queryResult: (data: any) => {
           let xArray = data.getChild("x").toArray();
@@ -158,7 +169,7 @@
   });
 
   let baseLayerColor = $derived(
-    isBaseLayerActive
+    isBaseLayerActive && config?.showBaseLayer !== false
       ? ((config?.colorScheme ?? "light") === "light" ? "#c8c8c8" : "#606060")
       : null
   );

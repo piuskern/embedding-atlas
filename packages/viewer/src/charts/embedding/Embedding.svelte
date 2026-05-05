@@ -32,6 +32,7 @@
   import { cubicOut } from "svelte/easing";
 
   import Button from "../../widgets/Button.svelte";
+  import CheckBox from "../../widgets/CheckBox.svelte";
   import PopupButton from "../../widgets/PopupButton.svelte";
   import Select from "../../widgets/Select.svelte";
   import Slider from "../../widgets/Slider.svelte";
@@ -228,6 +229,7 @@
       ...(spec.minimumDensity != null ? { minimumDensity: spec.minimumDensity } : {}),
       ...(spec.pointSize != null ? { pointSize: spec.pointSize } : {}),
       downsampleMaxPoints: spec.downsampleMaxPoints ?? defaultDownsampleMaxPoints,
+      showBaseLayer: spec.showBaseLayer ?? true,
     }}
     labels={context.embeddingViewLabels}
     cache={context.persistentCache}
@@ -358,7 +360,16 @@
             </div>
           {/if}
         </div>
-      </PopupButton>
+        <div class="flex flex-col gap-2 w-64">
+          <div class="text-slate-500 dark:text-slate-400 select-none">Base Layer</div>
+          <div class="flex gap-2 items-center">
+            <CheckBox
+              bind:checked={() => spec.showBaseLayer ?? true, (v) => onSpecChange({ showBaseLayer: v })}
+              label="Show"
+            />
+          </div>
+        </div></PopupButton
+      >
     </div>
   </div>
 </div>

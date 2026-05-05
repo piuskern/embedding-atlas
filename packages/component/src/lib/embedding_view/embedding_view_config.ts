@@ -40,4 +40,8 @@ export interface EmbeddingViewConfig {
    * Higher values mean more aggressive culling in dense areas.
    * Default: 5 */
   downsampleDensityWeight?: number | null;
+
+  /** Whether to show non-selected points as a grey base layer when a selection filter is active.
+   * Default: true */
+  showBaseLayer?: boolean | null;
 }
